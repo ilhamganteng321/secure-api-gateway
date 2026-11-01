@@ -1,0 +1,61 @@
+groups:
+  - name: gateway-alerts
+    rules:
+      - alert: GatewayHighErrorRate
+        expr: |
+          (
+            sum(rate(gateway_requests_total{status=~"5.."}[5m]))
+            /
+            clamp_min(sum(rate(gateway_requests_total[5m])), 1)
+          ) > 0.01
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Gateway error rate is above 1%
+          description: More than 1% of gateway requests are returning 5xx.
+
+      - alert: GatewayHighLatency
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum by (le) (
+              rate(gateway_request_duration_seconds_bucket[5m])
+            )
+          ) > 0.3
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: Gateway p95 latency is high
+          description: Gateway p95 latency exceeds 300ms.
+
+      - alert: GatewayUpstreamDown
+        expr: |
+          gateway_upstream_healthy == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: Upstream service is unhealthy
+          description: An upstream service has been unhealthy for more than one minute.
+
+      - alert: GatewayCircuitBreakerOpen
+        expr: |
+          gateway_circuit_breaker_state == 2
+        for: 30s
+        labels:
+          severity: critical
+        annotations:
+          summary: Circuit breaker is open
+          description: Requests to an upstream are currently being blocked.
+
+      - alert: GatewayErrorBudgetExhausted
+        expr: |
+          gateway:slo_error_budget:remaining_ratio < 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: Gateway error budget exhausted
+          description: The 30-day error budget has been exceeded.
